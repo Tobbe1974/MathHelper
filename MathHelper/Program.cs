@@ -69,6 +69,7 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     KnownProxies = { }
 });
 
+app.UsePathBase("/MathHelper");
 
 if (app.Environment.IsDevelopment())
 {
