@@ -72,8 +72,8 @@ using (var scope = app.Services.CreateScope())
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-    KnownIPNetworks = { },
-    KnownProxies = { }
+    // Trust any proxy - required when behind Nginx
+    ForwardLimit = null
 });
 
 // Read and apply PathBase from X-Forwarded-Prefix header
