@@ -65,17 +65,9 @@ using (var scope = app.Services.CreateScope())
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-    KnownNetworks = { },
+    KnownIPNetworks = { },
     KnownProxies = { }
 });
-
-// Since Nginx strips the /MathHelper/ prefix (proxy_pass ends in /),
-// we must set the PathBase so the app generates correct links.
-var pathBase = builder.Configuration["PATH_BASE"];
-if (!string.IsNullOrEmpty(pathBase))
-{
-    app.UsePathBase(pathBase);
-}
 
 
 if (app.Environment.IsDevelopment())
