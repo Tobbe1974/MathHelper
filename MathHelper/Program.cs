@@ -62,22 +62,24 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
+// Read and apply PathBase from X-Forwarded-Prefix header
+app.Use(async (context, next) =>
+{
+    var forwardedPrefix = context.Request.Headers["X-Forwarded-Prefix"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(forwardedPrefix))
+    {
+        context.Request.PathBase = new PathString(forwardedPrefix);
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("PathBase set to: {PathBase} from X-Forwarded-Prefix", forwardedPrefix);
+    }
+    await next();
+});
+
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
     KnownIPNetworks = { },
     KnownProxies = { }
-});
-
-// Read PathBase from X-Forwarded-Prefix header (set by Nginx)
-app.Use((context, next) =>
-{
-    var forwardedPrefix = context.Request.Headers["X-Forwarded-Prefix"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(forwardedPrefix))
-    {
-        context.Request.PathBase = forwardedPrefix;
-    }
-    return next(context);
 });
 
 if (app.Environment.IsDevelopment())
