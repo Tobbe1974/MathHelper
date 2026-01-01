@@ -69,34 +69,37 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     KnownProxies = { }
 });
 
-app.Map("/MathHelper", subapp =>
+// Read PathBase from X-Forwarded-Prefix header (set by Nginx)
+app.Use((context, next) =>
 {
-    subapp.UsePathBase("/MathHelper");
-    
-    if (app.Environment.IsDevelopment())
+    var forwardedPrefix = context.Request.Headers["X-Forwarded-Prefix"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(forwardedPrefix))
     {
-        subapp.UseMigrationsEndPoint();
+        context.Request.PathBase = forwardedPrefix;
     }
-    else
-    {
-        subapp.UseExceptionHandler("/Error", createScopeForErrors: true);
-        subapp.UseHsts();
-    }
-    
-    subapp.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-    // subapp.UseHttpsRedirection();
-    
-    subapp.UseRouting();
-    subapp.UseAuthorization();
-    subapp.UseAntiforgery();
-    
-    subapp.UseEndpoints(endpoints =>
-    {
-        endpoints.MapStaticAssets();
-        endpoints.MapRazorComponents<App>()
-            .AddInteractiveServerRenderMode();
-        endpoints.MapAdditionalIdentityEndpoints();
-    });
+    return next(context);
 });
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseMigrationsEndPoint();
+}
+else
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
+}
+
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+// app.UseHttpsRedirection();
+
+app.UseAuthorization();
+app.UseAntiforgery();
+
+app.MapStaticAssets();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+app.MapAdditionalIdentityEndpoints();
 
 app.Run();
