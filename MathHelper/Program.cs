@@ -86,14 +86,17 @@ app.Map("/MathHelper", subapp =>
     subapp.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
     // subapp.UseHttpsRedirection();
     
+    subapp.UseRouting();
     subapp.UseAuthorization();
     subapp.UseAntiforgery();
     
-    subapp.MapStaticAssets();
-    subapp.MapRazorComponents<App>()
-        .AddInteractiveServerRenderMode();
-    
-    subapp.MapAdditionalIdentityEndpoints();
+    subapp.UseEndpoints(endpoints =>
+    {
+        endpoints.MapStaticAssets();
+        endpoints.MapRazorComponents<App>()
+            .AddInteractiveServerRenderMode();
+        endpoints.MapAdditionalIdentityEndpoints();
+    });
 });
 
 app.Run();
