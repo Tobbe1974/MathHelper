@@ -68,21 +68,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-// Read and apply PathBase from X-Forwarded-Prefix header
-app.Use(async (context, next) =>
-{
-    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("BEFORE ForwardedHeaders - Scheme: {Scheme}, X-Forwarded-Proto: {XForwardedProto}", 
-        context.Request.Scheme, context.Request.Headers["X-Forwarded-Proto"].ToString());
-    
-    var forwardedPrefix = context.Request.Headers["X-Forwarded-Prefix"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(forwardedPrefix))
-    {
-        context.Request.PathBase = new PathString(forwardedPrefix);
-    }
-    await next();
-});
-
+// CRITICAL: UseForwardedHeaders MUST be first to process X-Forwarded-Proto
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
@@ -90,10 +76,22 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     KnownProxies = { }
 });
 
+// Read and apply PathBase from X-Forwarded-Prefix header
 app.Use(async (context, next) =>
 {
     var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("AFTER ForwardedHeaders - Scheme: {Scheme}", context.Request.Scheme);
+    logger.LogInformation("BEFORE PathBase - Scheme: {Scheme}, X-Forwarded-Proto: {XForwardedProto}", 
+        context.Request.Scheme, context.Request.Headers["X-Forwarded-Proto"].ToString());
+    
+    var forwardedPrefix = context.Request.Headers["X-Forwarded-Prefix"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(forwardedPrefix))
+    {
+        context.Request.PathBase = new PathString(forwardedPrefix);
+    }
+    
+    logger.LogInformation("AFTER PathBase - Scheme: {Scheme}, PathBase: {PathBase}", 
+        context.Request.Scheme, context.Request.PathBase);
+    
     await next();
 });
 
@@ -108,7 +106,7 @@ else
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Disabled - Nginx handles SSL termination
 
 app.UseAuthentication();
 app.UseAuthorization();
