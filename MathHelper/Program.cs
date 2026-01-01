@@ -71,12 +71,14 @@ using (var scope = app.Services.CreateScope())
 // Read and apply PathBase from X-Forwarded-Prefix header
 app.Use(async (context, next) =>
 {
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("BEFORE ForwardedHeaders - Scheme: {Scheme}, X-Forwarded-Proto: {XForwardedProto}", 
+        context.Request.Scheme, context.Request.Headers["X-Forwarded-Proto"].ToString());
+    
     var forwardedPrefix = context.Request.Headers["X-Forwarded-Prefix"].FirstOrDefault();
     if (!string.IsNullOrEmpty(forwardedPrefix))
     {
         context.Request.PathBase = new PathString(forwardedPrefix);
-        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("PathBase set to: {PathBase} from X-Forwarded-Prefix", forwardedPrefix);
     }
     await next();
 });
@@ -86,6 +88,13 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
     KnownIPNetworks = { },
     KnownProxies = { }
+});
+
+app.Use(async (context, next) =>
+{
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("AFTER ForwardedHeaders - Scheme: {Scheme}", context.Request.Scheme);
+    await next();
 });
 
 if (app.Environment.IsDevelopment())
