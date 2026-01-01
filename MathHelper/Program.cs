@@ -59,13 +59,18 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-// Configure the HTTP request pipeline.
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
-app.UsePathBase("/MathHelper");
+// Since Nginx strips the /MathHelper/ prefix (proxy_pass ends in /),
+// we must force the PathBase so the app generates correct links.
+app.Use(async (context, next) =>
+{
+    context.Request.PathBase = "/MathHelper";
+    await next(context);
+});
 
 if (app.Environment.IsDevelopment())
 {
