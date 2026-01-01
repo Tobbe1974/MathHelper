@@ -72,16 +72,15 @@ using (var scope = app.Services.CreateScope())
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-    // Trust any proxy - required when behind Nginx
-    ForwardLimit = null
+    RequireHeaderSymmetry = false  // Don't require matching X-Forwarded-For and X-Forwarded-Proto counts
 });
 
 // Read and apply PathBase from X-Forwarded-Prefix header
 app.Use(async (context, next) =>
 {
     var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("BEFORE PathBase - Scheme: {Scheme}, X-Forwarded-Proto: {XForwardedProto}", 
-        context.Request.Scheme, context.Request.Headers["X-Forwarded-Proto"].ToString());
+    logger.LogInformation("Request from IP: {RemoteIP}, Scheme: {Scheme}, X-Forwarded-Proto: {XForwardedProto}", 
+        context.Connection.RemoteIpAddress, context.Request.Scheme, context.Request.Headers["X-Forwarded-Proto"].ToString());
     
     var forwardedPrefix = context.Request.Headers["X-Forwarded-Prefix"].FirstOrDefault();
     if (!string.IsNullOrEmpty(forwardedPrefix))
