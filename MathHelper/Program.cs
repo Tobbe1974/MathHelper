@@ -69,11 +69,15 @@ using (var scope = app.Services.CreateScope())
 }
 
 // CRITICAL: UseForwardedHeaders MUST be first to process X-Forwarded-Proto
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+// CRITICAL: UseForwardedHeaders MUST be first to process X-Forwarded-Proto
+var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-    RequireHeaderSymmetry = false  // Don't require matching X-Forwarded-For and X-Forwarded-Proto counts
-});
+    RequireHeaderSymmetry = false
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 // Read and apply PathBase from X-Forwarded-Prefix header
 app.Use(async (context, next) =>
