@@ -69,29 +69,31 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     KnownProxies = { }
 });
 
-app.UsePathBase("/MathHelper");
-
-if (app.Environment.IsDevelopment())
+app.Map("/MathHelper", subapp =>
 {
-    app.UseMigrationsEndPoint();
-}
-else
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
-}
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-// app.UseHttpsRedirection();
-
-app.UseAuthorization();
-app.UseAntiforgery();
-
-app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-// Add additional endpoints required by the Identity /Account Razor components.
-app.MapAdditionalIdentityEndpoints();
+    subapp.UsePathBase("/MathHelper");
+    
+    if (app.Environment.IsDevelopment())
+    {
+        subapp.UseMigrationsEndPoint();
+    }
+    else
+    {
+        subapp.UseExceptionHandler("/Error", createScopeForErrors: true);
+        subapp.UseHsts();
+    }
+    
+    subapp.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+    // subapp.UseHttpsRedirection();
+    
+    subapp.UseAuthorization();
+    subapp.UseAntiforgery();
+    
+    subapp.MapStaticAssets();
+    subapp.MapRazorComponents<App>()
+        .AddInteractiveServerRenderMode();
+    
+    subapp.MapAdditionalIdentityEndpoints();
+});
 
 app.Run();
