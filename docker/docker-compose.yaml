@@ -12,6 +12,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=DataSource=/app/data/MathHelper.db;Cache=Shared
+      - ASPNETCORE_DATAPROTECTION_DIRECTORY=/app/data/keys
 
 volumes:
   mathhelper-data:
