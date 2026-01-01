@@ -1,0 +1,15 @@
+services:
+  mathhelper:
+    build:
+      context: ../MathHelper
+      dockerfile: Dockerfile
+    ports:
+      - "5290:8080"
+    volumes:
+      - mathhelper-data:/app/data
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=DataSource=/app/data/MathHelper.db;Cache=Shared
+
+volumes:
+  mathhelper-data:

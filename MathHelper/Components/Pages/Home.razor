@@ -1,0 +1,24 @@
+@page "/"
+@using Microsoft.AspNetCore.Authorization
+@inject NavigationManager Navigation
+@attribute [Authorize]
+
+<PageTitle>MathHelper - Home</PageTitle>
+
+<div class="container mt-4">
+    <div class="text-center mb-5">
+        <h1 class="display-4">Welcome to MathHelper!</h1>
+        <p class="lead">Practice your math skills and track your progress</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-body text-center p-5">
+                    <h3 class="mb-4">Ready to practice?</h3>
+                    <a href="/dashboard" class="btn btn-primary btn-lg">Go to Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

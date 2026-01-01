@@ -1,0 +1,327 @@
+@page "/admin"
+@using MathHelper.Models
+@using MathHelper.Services
+@inject AdminService AdminService
+@rendermode InteractiveServer
+
+<PageTitle>Admin - MathHelper</PageTitle>
+
+<div class="container mt-4">
+    @if (!_isAuthenticated)
+    {
+        <div class="row justify-content-center">
+            <div class="col-md-4">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h4 class="mb-0">Admin Login</h4>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(_errorMessage))
+                        {
+                            <div class="alert alert-danger">@_errorMessage</div>
+                        }
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" @bind="_username" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control" @bind="_password" @onkeydown="HandleKeyDown" />
+                        </div>
+                        <button class="btn btn-primary w-100" @onclick="Login">Login</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (_selectedUser == null)
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Admin Dashboard</h1>
+            <button class="btn btn-outline-danger" @onclick="Logout">Logout</button>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card shadow">
+                <div class="card-header">
+                    <h4 class="mb-0">All Users (@(_users?.Count ?? 0))</h4>
+                </div>
+                <div class="card-body">
+                    @if (_users != null && _users.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Total Attempts</th>
+                                        <th>Accuracy</th>
+                                        <th>Trials</th>
+                                        <th>Last Activity</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var user in _users)
+                                    {
+                                        <tr>
+                                            <td><strong>@user.UserName</strong></td>
+                                            <td>@user.Email</td>
+                                            <td>@user.TotalAttempts</td>
+                                            <td>@user.Accuracy.ToString("F1")%</td>
+                                            <td>@user.TrialCount</td>
+                                            <td>
+                                                @if (user.LastActivity.HasValue)
+                                                {
+                                                    @user.LastActivity.Value.ToLocalTime().ToString("MMM d, yyyy HH:mm")
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">Never</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewUserDetails(user.UserId)">
+                                                    View Details
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center">No users registered yet.</p>
+                    }
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <button class="btn btn-outline-secondary me-2" @onclick="BackToList">
+                    &larr; Back to Users
+                </button>
+                <h1 class="d-inline">@_selectedUser.UserName</h1>
+            </div>
+            <button class="btn btn-outline-danger" @onclick="Logout">Logout</button>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3>@_selectedUser.TotalAttempts</h3>
+                        <p class="text-muted mb-0">Total Attempts</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3>@_selectedUser.TotalCorrect</h3>
+                        <p class="text-muted mb-0">Correct Answers</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3>@_selectedUser.Accuracy.ToString("F1")%</h3>
+                        <p class="text-muted mb-0">Accuracy</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3>@_selectedUser.TrialCount</h3>
+                        <p class="text-muted mb-0">Trials Completed</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="mb-0">Progress by Category</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Level</th>
+                                        <th>Correct</th>
+                                        <th>Attempts</th>
+                                        <th>Accuracy</th>
+                                        <th>Streak</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var category in Enum.GetValues<MathCategory>())
+                                    {
+                                        var p = _selectedUser.ProgressByCategory.GetValueOrDefault(category);
+                                        <tr>
+                                            <td><strong>@category</strong></td>
+                                            <td><span class="badge bg-secondary">@(p?.CurrentLevel ?? 1)</span></td>
+                                            <td>@(p?.TotalCorrect ?? 0)</td>
+                                            <td>@(p?.TotalAttempts ?? 0)</td>
+                                            <td>
+                                                @if (p != null && p.TotalAttempts > 0)
+                                                {
+                                                    @(((double)p.TotalCorrect / p.TotalAttempts * 100).ToString("F1"))@("%")
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>@(p?.CorrectStreak ?? 0)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="mb-0">Recent Trials</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_selectedUser.RecentTrials.Any())
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Category</th>
+                                            <th>Questions</th>
+                                            <th>Correct</th>
+                                            <th>Accuracy</th>
+                                            <th>Time</th>
+                                            <th>Level</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var trial in _selectedUser.RecentTrials)
+                                        {
+                                            <tr>
+                                                <td>@trial.CompletedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm")</td>
+                                                <td>@trial.Category</td>
+                                                <td>@trial.QuestionCount</td>
+                                                <td>@trial.CorrectAnswers</td>
+                                                <td>@trial.Accuracy.ToString("F0")%</td>
+                                                <td>@FormatTime(trial.TimeSeconds)</td>
+                                                <td><span class="badge bg-secondary">@trial.DifficultyLevel</span></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted text-center">No trials completed yet.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isAuthenticated;
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+    private string _errorMessage = string.Empty;
+
+    private bool _loading;
+    private List<UserStats>? _users;
+    private UserStats? _selectedUser;
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Login();
+        }
+    }
+
+    private void Login()
+    {
+        if (AdminService.ValidateAdmin(_username, _password))
+        {
+            _isAuthenticated = true;
+            _errorMessage = string.Empty;
+            LoadUsers();
+        }
+        else
+        {
+            _errorMessage = "Invalid username or password";
+        }
+    }
+
+    private void Logout()
+    {
+        _isAuthenticated = false;
+        _username = string.Empty;
+        _password = string.Empty;
+        _users = null;
+        _selectedUser = null;
+    }
+
+    private async void LoadUsers()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        _users = await AdminService.GetAllUserStatsAsync();
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task ViewUserDetails(string userId)
+    {
+        _selectedUser = await AdminService.GetUserStatsAsync(userId);
+    }
+
+    private void BackToList()
+    {
+        _selectedUser = null;
+    }
+
+    private string FormatTime(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds((double)seconds);
+        return ts.Minutes > 0
+            ? $"{ts.Minutes}:{ts.Seconds:D2}.{ts.Milliseconds / 100}"
+            : $"{ts.Seconds}.{ts.Milliseconds / 100}s";
+    }
+}

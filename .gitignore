@@ -1,0 +1,25 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+
+# VS
+.vs/
+*.user
+*.suo
+
+# VS Code
+.vscode/
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# User secrets
+secrets.json
+
+# dotnet
+*.log
+project.lock.json

@@ -1,0 +1,202 @@
+@page "/practice/{CategoryName}"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using MathHelper.Models
+@using MathHelper.Services
+@inject MathProblemService MathService
+@inject ProgressService ProgressService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Practice @CategoryName - MathHelper</PageTitle>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Practice @CategoryName</h1>
+        <a href="/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
+    </div>
+
+    @if (!_validCategory)
+    {
+        <div class="alert alert-danger">Invalid category. Please select a valid category from the dashboard.</div>
+    }
+    else if (_loading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card shadow">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="badge bg-secondary">Level @_currentLevel</span>
+                        <span>Streak: @_correctStreak</span>
+                    </div>
+                    <div class="card-body text-center p-5">
+                        @if (_currentProblem != null)
+                        {
+                            <h2 class="display-4 mb-4">@_currentProblem.Display = ?</h2>
+
+                            <div class="mb-4">
+                                <input @ref="_inputRef"
+                                       type="text"
+                                       inputmode="numeric"
+                                       pattern="[0-9-]*"
+                                       class="form-control form-control-lg text-center"
+                                       style="max-width: 200px; margin: 0 auto; font-size: 2rem;"
+                                       @bind="_userAnswer"
+                                       @bind:event="oninput"
+                                       @onkeydown="HandleKeyDown"
+                                       disabled="@_showingFeedback" />
+                            </div>
+
+                            @if (_showingFeedback)
+                            {
+                                <div class="alert @(_lastAnswerCorrect ? "alert-success" : "alert-danger") mb-3">
+                                    <strong>@(_lastAnswerCorrect ? "Correct!" : "Incorrect")</strong>
+                                </div>
+                            }
+
+                            <button class="btn btn-primary btn-lg" @onclick="SubmitAnswer" disabled="@_showingFeedback">
+                                Submit
+                            </button>
+                        }
+                    </div>
+                    <div class="card-footer">
+                        <div class="row text-center">
+                            <div class="col">
+                                <strong>Correct:</strong> @_sessionCorrect
+                            </div>
+                            <div class="col">
+                                <strong>Total:</strong> @_sessionTotal
+                            </div>
+                            <div class="col">
+                                <strong>Accuracy:</strong> @((_sessionTotal > 0 ? ((double)_sessionCorrect / _sessionTotal * 100).ToString("F0") : "0"))%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string CategoryName { get; set; } = string.Empty;
+
+    private ElementReference _inputRef;
+    private MathCategory _category;
+    private bool _validCategory;
+    private bool _loading = true;
+    private string? _userId;
+
+    private MathProblem? _currentProblem;
+    private string _userAnswer = string.Empty;
+    private bool _showingFeedback;
+    private bool _lastAnswerCorrect;
+
+    private int _currentLevel = 1;
+    private int _correctStreak;
+    private int _sessionCorrect;
+    private int _sessionTotal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _validCategory = Enum.TryParse<MathCategory>(CategoryName, true, out _category);
+        if (!_validCategory)
+        {
+            _loading = false;
+            return;
+        }
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrEmpty(_userId))
+        {
+            var progress = await ProgressService.GetOrCreateProgressAsync(_userId, _category);
+            _currentLevel = progress.CurrentLevel;
+            _correctStreak = progress.CorrectStreak;
+        }
+
+        GenerateNewProblem();
+        _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _validCategory)
+        {
+            await FocusInput();
+        }
+    }
+
+    private async Task FocusInput()
+    {
+        try
+        {
+            await _inputRef.FocusAsync();
+        }
+        catch { }
+    }
+
+    private void GenerateNewProblem()
+    {
+        _currentProblem = MathService.GenerateProblem(_category, _currentLevel);
+        _userAnswer = string.Empty;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_showingFeedback)
+        {
+            await SubmitAnswer();
+        }
+    }
+
+    private async Task SubmitAnswer()
+    {
+        if (_showingFeedback || _currentProblem == null || string.IsNullOrEmpty(_userId))
+            return;
+
+        if (!int.TryParse(_userAnswer, out var answer))
+            return;
+
+        _sessionTotal++;
+        _lastAnswerCorrect = answer == _currentProblem.CorrectAnswer;
+
+        if (_lastAnswerCorrect)
+        {
+            _sessionCorrect++;
+            _correctStreak++;
+        }
+        else
+        {
+            _correctStreak = 0;
+        }
+
+        var progress = await ProgressService.RecordAnswerAsync(_userId, _category, _lastAnswerCorrect);
+        _currentLevel = progress.CurrentLevel;
+        _correctStreak = progress.CorrectStreak;
+
+        _showingFeedback = true;
+        StateHasChanged();
+
+        await Task.Delay(2000);
+
+        _showingFeedback = false;
+        GenerateNewProblem();
+        StateHasChanged();
+
+        await FocusInput();
+    }
+}

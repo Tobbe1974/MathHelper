@@ -1,0 +1,369 @@
+@page "/trial/{CategoryName}"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using MathHelper.Models
+@using MathHelper.Services
+@using System.Diagnostics
+@inject MathProblemService MathService
+@inject ProgressService ProgressService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Trial @CategoryName - MathHelper</PageTitle>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Trial: @CategoryName</h1>
+        <a href="/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
+    </div>
+
+    @if (!_validCategory)
+    {
+        <div class="alert alert-danger">Invalid category. Please select a valid category from the dashboard.</div>
+    }
+    else if (_loading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!_trialStarted)
+    {
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card shadow h-100">
+                            <div class="card-header bg-primary text-white">
+                                <h4 class="mb-0 text-center">Trial: Upgrade Level</h4>
+                            </div>
+                            <div class="card-body text-center p-4">
+                                <p class="mb-2">Answer 20 questions as fast as you can.</p>
+                                <p class="mb-4 text-muted">Need at least <strong>17 correct</strong> to pass.</p>
+                                <div class="d-grid">
+                                    <button class="btn btn-primary btn-lg" @onclick="() => StartTrial(20)">Start Trial</button>
+                                </div>
+
+                                @if (_bestTrial != null)
+                                {
+                                    <hr class="my-3" />
+                                    <p class="mb-0"><strong>Best:</strong> @FormatTime(_bestTrial.TimeSeconds) (@_bestTrial.CorrectAnswers/20)</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card shadow h-100">
+                            <div class="card-header bg-warning text-dark">
+                                <h4 class="mb-0 text-center">Time Trial: 100 Questions</h4>
+                            </div>
+                            <div class="card-body text-center p-4">
+                                <p class="mb-2">The ultimate challenge!</p>
+                                <p class="mb-4 text-muted">100 questions, best time wins.</p>
+                                <div class="d-grid">
+                                    <button class="btn btn-warning btn-lg" @onclick="() => StartTrial(100)">Start Time Trial</button>
+                                </div>
+
+                                @if (_bestTrial100 != null)
+                                {
+                                    <hr class="my-3" />
+                                    <p class="mb-0"><strong>Best:</strong> @FormatTime(_bestTrial100.TimeSeconds) (@_bestTrial100.CorrectAnswers/100)</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (!_trialComplete)
+    {
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card shadow">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Question @(_currentQuestionIndex + 1) of @_questionCount</span>
+                        <span class="badge bg-primary fs-5">@FormatTime(_elapsedSeconds)</span>
+                    </div>
+                    <div class="card-body text-center p-5">
+                        @if (_currentProblem != null)
+                        {
+                            <h2 class="display-4 mb-4">@_currentProblem.Display = ?</h2>
+
+                            <div class="mb-4">
+                                <input @ref="_inputRef"
+                                       type="text"
+                                       inputmode="numeric"
+                                       pattern="[0-9-]*"
+                                       class="form-control form-control-lg text-center"
+                                       style="max-width: 200px; margin: 0 auto; font-size: 2rem;"
+                                       @bind="_userAnswer"
+                                       @bind:event="oninput"
+                                       @onkeydown="HandleKeyDown" />
+                            </div>
+
+                            <button class="btn btn-primary btn-lg" @onclick="SubmitAnswer">
+                                Submit
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        var isUpgradeTrial = _questionCount == 20;
+        var passed = !isUpgradeTrial || _correctAnswers >= 17;
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    @if (isUpgradeTrial && passed)
+                    {
+                        <div class="card-header bg-success text-white">
+                            <h3 class="mb-0 text-center">PASSED!</h3>
+                        </div>
+                        <div class="card-body text-center p-5">
+                            <h2 class="mb-2">Amazing!!! Well done</h2>
+                            <h3 class="text-success mb-4">You are now Level @_currentLevel</h3>
+                            <p class="text-muted mb-4">Time: @FormatTime(_finalTime) | Score: @_correctAnswers / 20</p>
+                            <div class="d-grid">
+                                <a href="/dashboard" class="btn btn-success btn-lg">Back to Dashboard</a>
+                            </div>
+                        </div>
+                    }
+                    else if (isUpgradeTrial && !passed)
+                    {
+                        <div class="card-header bg-danger text-white">
+                            <h3 class="mb-0 text-center">NOT PASSED</h3>
+                        </div>
+                        <div class="card-body text-center p-5">
+                            <h2 class="mb-4">@FormatTime(_finalTime)</h2>
+                            <div class="row mb-4">
+                                <div class="col">
+                                    <h4 class="text-danger">@_correctAnswers / 20</h4>
+                                    <p class="text-muted">Correct (need 17)</p>
+                                </div>
+                                <div class="col">
+                                    <h4>@(((double)_correctAnswers / _questionCount * 100).ToString("F0"))%</h4>
+                                    <p class="text-muted">Accuracy</p>
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2 d-md-flex justify-content-center">
+                                <button class="btn btn-primary btn-lg" @onclick="() => StartTrial(20)">Try Again</button>
+                                <a href="/dashboard" class="btn btn-outline-secondary btn-lg">Back to Dashboard</a>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="card-header bg-warning text-dark">
+                            <h3 class="mb-0 text-center">Time Trial Complete!</h3>
+                        </div>
+                        <div class="card-body text-center p-5">
+                            <h2 class="mb-4">@FormatTime(_finalTime)</h2>
+                            <div class="row mb-4">
+                                <div class="col">
+                                    <h4 class="text-success">@_correctAnswers / 100</h4>
+                                    <p class="text-muted">Correct</p>
+                                </div>
+                                <div class="col">
+                                    <h4>@(((double)_correctAnswers / _questionCount * 100).ToString("F0"))%</h4>
+                                    <p class="text-muted">Accuracy</p>
+                                </div>
+                            </div>
+                            @if (_isNewBest)
+                            {
+                                <div class="alert alert-success">
+                                    <strong>New Personal Best!</strong>
+                                </div>
+                            }
+                            <div class="d-grid gap-2 d-md-flex justify-content-center">
+                                <button class="btn btn-warning btn-lg" @onclick="() => StartTrial(100)">Try Again</button>
+                                <a href="/dashboard" class="btn btn-outline-secondary btn-lg">Back to Dashboard</a>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string CategoryName { get; set; } = string.Empty;
+
+    private ElementReference _inputRef;
+    private MathCategory _category;
+    private bool _validCategory;
+    private bool _loading = true;
+    private string? _userId;
+    private int _currentLevel = 1;
+
+    private bool _trialStarted;
+    private bool _trialComplete;
+    private int _questionCount;
+    private int _currentQuestionIndex;
+    private int _correctAnswers;
+
+    private MathProblem? _currentProblem;
+    private string _userAnswer = string.Empty;
+
+    private Stopwatch _stopwatch = new();
+    private System.Threading.Timer? _timer;
+    private double _elapsedSeconds;
+    private double _finalTime;
+    private bool _isNewBest;
+
+    private TrialResult? _bestTrial;
+    private TrialResult? _bestTrial100;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _validCategory = Enum.TryParse<MathCategory>(CategoryName, true, out _category);
+        if (!_validCategory)
+        {
+            _loading = false;
+            return;
+        }
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrEmpty(_userId))
+        {
+            var progress = await ProgressService.GetOrCreateProgressAsync(_userId, _category);
+            _currentLevel = progress.CurrentLevel;
+
+            _bestTrial = await ProgressService.GetBestTrialAsync(_userId, _category, 20);
+            _bestTrial100 = await ProgressService.GetBestTrialAsync(_userId, _category, 100);
+        }
+
+        _loading = false;
+    }
+
+    private async Task StartTrial(int questionCount)
+    {
+        _questionCount = questionCount;
+        _currentQuestionIndex = 0;
+        _correctAnswers = 0;
+        _trialStarted = true;
+        _trialComplete = false;
+
+        GenerateNewProblem();
+
+        _stopwatch.Restart();
+        _timer = new System.Threading.Timer(UpdateTimer, null, 0, 100);
+
+        await Task.Yield();
+        StateHasChanged();
+        await Task.Delay(50);
+        await FocusInput();
+    }
+
+    private async Task FocusInput()
+    {
+        try
+        {
+            await _inputRef.FocusAsync();
+        }
+        catch { }
+    }
+
+    private void UpdateTimer(object? state)
+    {
+        _elapsedSeconds = _stopwatch.Elapsed.TotalSeconds;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void GenerateNewProblem()
+    {
+        _currentProblem = MathService.GenerateProblem(_category, _currentLevel);
+        _userAnswer = string.Empty;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SubmitAnswer();
+        }
+    }
+
+    private async Task SubmitAnswer()
+    {
+        if (_currentProblem == null || string.IsNullOrEmpty(_userId))
+            return;
+
+        if (!int.TryParse(_userAnswer, out var answer))
+            return;
+
+        var isCorrect = answer == _currentProblem.CorrectAnswer;
+        if (isCorrect)
+        {
+            _correctAnswers++;
+        }
+
+        // Only update progress/level for upgrade trial (not Time Trial)
+        if (_questionCount == 20)
+        {
+            var progress = await ProgressService.RecordAnswerAsync(_userId, _category, isCorrect);
+            _currentLevel = progress.CurrentLevel;
+        }
+
+        _currentQuestionIndex++;
+
+        if (_currentQuestionIndex >= _questionCount)
+        {
+            await CompleteTrial();
+        }
+        else
+        {
+            GenerateNewProblem();
+            await FocusInput();
+        }
+    }
+
+    private async Task CompleteTrial()
+    {
+        _stopwatch.Stop();
+        _timer?.Dispose();
+
+        _finalTime = _stopwatch.Elapsed.TotalSeconds;
+        _trialComplete = true;
+
+        if (!string.IsNullOrEmpty(_userId))
+        {
+            var previousBest = await ProgressService.GetBestTrialAsync(_userId, _category, _questionCount);
+            _isNewBest = previousBest == null || _finalTime < previousBest.TimeSeconds;
+
+            await ProgressService.SaveTrialResultAsync(
+                _userId,
+                _category,
+                _questionCount,
+                _correctAnswers,
+                _finalTime,
+                _currentLevel
+            );
+        }
+    }
+
+    private string FormatTime(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds((double)seconds);
+        return ts.Minutes > 0
+            ? $"{ts.Minutes}:{ts.Seconds:D2}.{ts.Milliseconds / 100}"
+            : $"{ts.Seconds}.{ts.Milliseconds / 100}s";
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}

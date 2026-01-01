@@ -1,0 +1,105 @@
+@page "/dashboard"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using MathHelper.Models
+@using MathHelper.Services
+@inject ProgressService ProgressService
+@inject AuthenticationStateProvider AuthStateProvider
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard - MathHelper</PageTitle>
+
+<div class="container mt-4">
+    <h1 class="mb-4">Your Progress</h1>
+
+    @if (_loading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (_progress != null)
+    {
+        <div class="row">
+            @foreach (var category in Enum.GetValues<MathCategory>())
+            {
+                var progress = _progress.GetValueOrDefault(category);
+                var symbol = GetCategorySymbol(category);
+                var color = GetCategoryColor(category);
+
+                <div class="col-md-6 col-lg-3 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header text-white" style="background-color: @color">
+                            <h4 class="mb-0 text-center">
+                                <span class="me-2">@symbol</span>@category
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                <span class="badge bg-secondary fs-5">Level @(progress?.CurrentLevel ?? 1)</span>
+                            </div>
+                            @if (progress != null && progress.TotalAttempts > 0)
+                            {
+                                var accuracy = (double)progress.TotalCorrect / progress.TotalAttempts * 100;
+                                <p class="mb-1"><strong>Correct:</strong> @progress.TotalCorrect / @progress.TotalAttempts</p>
+                                <p class="mb-3"><strong>Accuracy:</strong> @accuracy.ToString("F1")%</p>
+                            }
+                            else
+                            {
+                                <p class="text-muted mb-3">No attempts yet</p>
+                            }
+                            <div class="d-grid gap-2">
+                                <a href="/practice/@category" class="btn btn-outline-primary">Practice</a>
+                                <a href="/trial/@category" class="btn btn-primary">Start Trial</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12 text-center">
+                <a href="/stats" class="btn btn-lg btn-outline-secondary">View Full Statistics</a>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private Dictionary<MathCategory, UserProgress>? _progress;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            _progress = await ProgressService.GetAllProgressAsync(userId);
+        }
+        _loading = false;
+    }
+
+    private string GetCategorySymbol(MathCategory category) => category switch
+    {
+        MathCategory.Addition => "+",
+        MathCategory.Subtraction => "-",
+        MathCategory.Multiplication => "×",
+        MathCategory.Division => "÷",
+        _ => "?"
+    };
+
+    private string GetCategoryColor(MathCategory category) => category switch
+    {
+        MathCategory.Addition => "#28a745",
+        MathCategory.Subtraction => "#dc3545",
+        MathCategory.Multiplication => "#007bff",
+        MathCategory.Division => "#6f42c1",
+        _ => "#6c757d"
+    };
+}
