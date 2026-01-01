@@ -70,16 +70,13 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 });
 
 // Since Nginx strips the /MathHelper/ prefix (proxy_pass ends in /),
-// we must force the PathBase so the app generates correct links.
+// we must set the PathBase so the app generates correct links.
 var pathBase = builder.Configuration["PATH_BASE"];
 if (!string.IsNullOrEmpty(pathBase))
 {
-    app.Use(async (context, next) =>
-    {
-        context.Request.PathBase = pathBase;
-        await next(context);
-    });
+    app.UsePathBase(pathBase);
 }
+
 
 if (app.Environment.IsDevelopment())
 {
