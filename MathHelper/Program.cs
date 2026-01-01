@@ -15,7 +15,10 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddAuthentication(options =>
     {
@@ -61,16 +64,22 @@ using (var scope = app.Services.CreateScope())
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    KnownNetworks = { },
+    KnownProxies = { }
 });
 
 // Since Nginx strips the /MathHelper/ prefix (proxy_pass ends in /),
 // we must force the PathBase so the app generates correct links.
-app.Use(async (context, next) =>
+var pathBase = builder.Configuration["PATH_BASE"];
+if (!string.IsNullOrEmpty(pathBase))
 {
-    context.Request.PathBase = "/MathHelper";
-    await next(context);
-});
+    app.Use(async (context, next) =>
+    {
+        context.Request.PathBase = pathBase;
+        await next(context);
+    });
+}
 
 if (app.Environment.IsDevelopment())
 {
